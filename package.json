@@ -1,0 +1,42 @@
+{
+  "name": "hullbridge-dental-clinic",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "seed:admin": "node prisma/seed-admin.js",
+    "seed:hours": "node prisma/seed-hours.js",
+    "seed:prices": "node prisma/seed-prices.js",
+    "seed:faq": "node prisma/seed-faq.js"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "@prisma/client": "^5.20.0",
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.9.0",
+    "formidable": "^3.5.1",
+    "resend": "^4.0.0",
+    "lucide-react": "^0.383.0",
+    "dotenv": "^16.4.5",
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "prisma": "^5.20.0",
+    "tailwindcss": "^3.4.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.3.0"
+  },
+  "engines": {
+    "node": ">=18.18.0"
+  }
+}
