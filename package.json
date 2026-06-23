@@ -4,17 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
-    "start": "next start",
-    "lint": "next lint",
+    "prebuild": "prisma generate",
+    "build": "next build",
     "postinstall": "prisma generate",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio",
-    "seed:admin": "node prisma/seed-admin.js",
-    "seed:hours": "node prisma/seed-hours.js",
-    "seed:prices": "node prisma/seed-prices.js",
-    "seed:faq": "node prisma/seed-faq.js"
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
     "next": "^15.0.0",
