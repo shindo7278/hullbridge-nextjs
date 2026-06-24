@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Phone } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Frequently Asked Questions — Hullbridge Dental Clinic",
   description: "Answers to the most common questions from our patients in Hullbridge, Essex.",
@@ -12,12 +14,14 @@ export const metadata = {
 
 async function getPublishedFaqs() {
   try {
-    return await prisma.generalFaq.findMany({
+    const faqs = await prisma.generalFaq.findMany({
       where: { isPublished: true },
       orderBy: [{ category: "asc" }, { sortOrder: "asc" }],
       select: { id: true, question: true, answer: true, category: true },
     });
-  } catch {
+    return faqs;
+  } catch (err) {
+    console.error("[FAQ PAGE] Failed to load FAQs:", err);
     return [];
   }
 }

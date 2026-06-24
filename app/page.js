@@ -3,9 +3,7 @@ import SiteFooter from "@/components/SiteFooter";
 import HomeHero from "@/components/HomeHero";
 import { Phone, ShieldCheck, Sparkles, Stethoscope, Star } from "lucide-react";
 import Link from "next/link";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 // Reads the admin-controlled hero video URL straight from the
 // database on every request, so uploading/removing it in
