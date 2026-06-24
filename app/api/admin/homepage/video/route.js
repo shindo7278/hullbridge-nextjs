@@ -8,7 +8,7 @@ const MAX_SIZE_BYTES = 25 * 1024 * 1024;
 const ACCEPTED_MIME = ["video/mp4", "video/webm"];
 
 const supabaseAdmin = createClient(
-  process.env.PUBLIC_SUPABASSE_URL,
+  process.env.PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
