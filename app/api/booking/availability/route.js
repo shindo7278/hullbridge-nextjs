@@ -23,7 +23,7 @@ export async function GET(request) {
     return NextResponse.json({ error: "date query param is required (YYYY-MM-DD)" }, { status: 400 });
   }
 
-  const requestedDate = new Date(date);
+  const requestedDate = new Date(date + "T00:00:00.000Z");
   if (isNaN(requestedDate.getTime())) {
     return NextResponse.json({ error: "Invalid date format" }, { status: 400 });
   }
@@ -35,7 +35,9 @@ export async function GET(request) {
   }
 
   try {
-    const exception = await prisma.scheduleException.findFirst({ where: { date: requestedDate } });
+    const exception = await prisma.scheduleException.findFirst({
+      where: { date: requestedDate },
+    });
 
     let dayWindows = [];
     if (exception) {
@@ -48,7 +50,7 @@ export async function GET(request) {
     }
 
     if (dayWindows.length === 0) {
-      const dayOfWeek = requestedDate.getDay();
+      const dayOfWeek = new Date(date + "T12:00:00").getDay();
       const hours = await prisma.openingHour.findMany({ where: { dayOfWeek, isOpen: true } });
       if (hours.length === 0) {
         return NextResponse.json({ date, slots: [], reason: "closed" });
@@ -73,9 +75,13 @@ export async function GET(request) {
     }
 
     const existingBookings = await prisma.booking.findMany({
-      where: { date: requestedDate, status: { in: ["PENDING", "CONFIRMED"] } },
+      where: {
+        date: requestedDate,
+        status: { in: ["PENDING", "CONFIRMED"] },
+      },
       select: { startTime: true },
     });
+
     const takenTimes = new Set(existingBookings.map((b) => b.startTime));
     const availableSlots = candidateSlots.filter((slot) => !takenTimes.has(slot));
 
