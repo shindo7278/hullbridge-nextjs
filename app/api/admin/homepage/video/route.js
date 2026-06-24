@@ -1,15 +1,8 @@
 // POST/DELETE /api/admin/homepage/video
-// Now accepts JSON { heroVideoUrl } instead of FormData
-// because the file is uploaded directly from the browser to Supabase Storage
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAdminSession } from "@/lib/verifyAdminSession";
 import { createClient } from "@supabase/supabase-js";
-
-const supabaseAdmin = createClient(
-  process.env.PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 export async function POST(request) {
   const session = await verifyAdminSession(request);
@@ -33,15 +26,19 @@ export async function POST(request) {
 }
 
 export async function DELETE(request) {
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+
   const session = await verifyAdminSession(request);
   if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   try {
     const settings = await prisma.clinicSettings.findUnique({ where: { id: 1 } });
     if (settings?.heroVideoUrl) {
-      // Extract path from public URL and delete from Supabase Storage
       const url = settings.heroVideoUrl;
-      const pathMatch = url.match(/\/uploads\/(.+)$/);
+      const pathMatch = url.match(/\/object\/public\/uploads\/(.+)$/);
       if (pathMatch) {
         await supabaseAdmin.storage.from("uploads").remove([pathMatch[1]]).catch(() => {});
       }

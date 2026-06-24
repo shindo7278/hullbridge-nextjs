@@ -1,22 +1,17 @@
 // POST /api/admin/blog/upload-image
-// ============================================================
-// Uploads a blog image to Supabase Storage and returns a public URL.
-// Vercel's filesystem is read-only so we can't write to public/uploads —
-// Supabase Storage is the correct solution for serverless deployments.
-// ============================================================
 import { NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/verifyAdminSession";
 import { createClient } from "@supabase/supabase-js";
 
-const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 const ACCEPTED_MIME = ["image/jpeg", "image/png", "image/webp"];
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASSE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
 export async function POST(request) {
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+
   const session = await verifyAdminSession(request);
   if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
@@ -41,10 +36,7 @@ export async function POST(request) {
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from("uploads")
-      .upload(filePath, buffer, {
-        contentType: file.type,
-        upsert: false,
-      });
+      .upload(filePath, buffer, { contentType: file.type, upsert: false });
 
     if (uploadError) {
       console.error("Supabase storage upload error:", uploadError);
@@ -52,7 +44,6 @@ export async function POST(request) {
     }
 
     const { data } = supabaseAdmin.storage.from("uploads").getPublicUrl(filePath);
-
     return NextResponse.json({ success: true, url: data.publicUrl });
   } catch (err) {
     console.error("blog image upload error:", err);
