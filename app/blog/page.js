@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Calendar } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 
+export const revalidate = 0;
+
 export const metadata = {
   title: "Patient Guides & Advice — Hullbridge Dental Clinic",
   description: "Honest, practical answers to the questions our patients in Hullbridge ask us most.",

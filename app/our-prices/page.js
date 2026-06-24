@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Phone } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 
+export const revalidate = 0;
+
 export const metadata = {
   title: "Our Prices — Hullbridge Dental Clinic",
   description: "Clear, transparent dental pricing at Hullbridge Dental Clinic, priced to closely match the NHS.",
