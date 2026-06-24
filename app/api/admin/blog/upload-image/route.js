@@ -12,7 +12,7 @@ const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 const ACCEPTED_MIME = ["image/jpeg", "image/png", "image/webp"];
 
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
