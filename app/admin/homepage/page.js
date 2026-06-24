@@ -1,22 +1,16 @@
 "use client";
 
-// ============================================================
-// /admin/homepage — Hero background video control
-// ============================================================
-// Full control, not just "add": the admin can upload a new video,
-// replace the current one, or remove it entirely and fall back to
-// the plain gradient background. There is no scheduling here — the
-// moment a video is uploaded it's live; the moment it's removed,
-// the homepage reverts immediately. (If "show this video only
-// during X dates" is ever needed, that would be a separate
-// scheduledFrom/scheduledTo pair on ClinicSettings — not built yet
-// since it wasn't asked for.)
-// ============================================================
 import React, { useState, useRef, useEffect } from "react";
-import { Upload, Trash2, Play, Loader2, Check, AlertCircle, Film } from "lucide-react";
+import { Upload, Trash2, Loader2, Check, AlertCircle, Film } from "lucide-react";
+import { createClient } from "@supabase/supabase-js";
 
 const MAX_SIZE_MB = 25;
 const ACCEPTED_TYPES = ["video/mp4", "video/webm"];
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 export default function AdminHomepageVideo() {
   const [videoUrl, setVideoUrl] = useState(null);
@@ -48,27 +42,41 @@ export default function AdminHomepageVideo() {
       return;
     }
     if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-      setError(`File is too large — please keep it under ${MAX_SIZE_MB}MB for fast loading.`);
+      setError(`File is too large — please keep it under ${MAX_SIZE_MB}MB.`);
       return;
     }
 
     setUploading(true);
-    setProgress(0);
-    try {
-      const formData = new FormData();
-      formData.append("video", file);
+    setProgress(10);
 
-      // In production: upload progress via XHR or a presigned URL to
-      // object storage (S3/Cloudflare R2/etc.), not raw POST through
-      // the Node server, to keep memory usage sane for video files.
+    try {
+      const ext = file.type === "video/webm" ? "webm" : "mp4";
+      const fileName = `homepage/hero-${Date.now()}.${ext}`;
+
+      // Upload directly to Supabase Storage from browser
+      const { error: uploadError } = await supabase.storage
+        .from("uploads")
+        .upload(fileName, file, { contentType: file.type, upsert: false });
+
+      if (uploadError) throw new Error(uploadError.message);
+
+      setProgress(80);
+
+      const { data } = supabase.storage.from("uploads").getPublicUrl(fileName);
+      const publicUrl = data.publicUrl;
+
+      // Save URL to database via API
       const res = await fetch("/api/admin/homepage/video", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ heroVideoUrl: publicUrl }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Upload failed");
 
-      setVideoUrl(data.heroVideoUrl);
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to save");
+
+      setProgress(100);
+      setVideoUrl(publicUrl);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
@@ -81,7 +89,7 @@ export default function AdminHomepageVideo() {
   }
 
   async function removeVideo() {
-    if (!confirm("Remove the background video? The homepage will go back to the plain background immediately.")) return;
+    if (!confirm("Remove the background video? The homepage will revert to the plain background immediately.")) return;
     setError(null);
     try {
       await fetch("/api/admin/homepage/video", { method: "DELETE" });
@@ -112,6 +120,7 @@ export default function AdminHomepageVideo() {
 
       <div style={{ maxWidth: 640, margin: "0 auto", padding: 24 }}>
         <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E3EEF5", padding: 24 }}>
+
           {videoUrl ? (
             <>
               <div style={{ borderRadius: 14, overflow: "hidden", marginBottom: 16, background: "#0F1E2B" }}>
@@ -137,8 +146,8 @@ export default function AdminHomepageVideo() {
           ) : (
             <div style={{
               border: "2px dashed #DCEAF3", borderRadius: 14, padding: "40px 20px",
-              textAlign: "center", cursor: "pointer",
-            }} onClick={pickFile}>
+              textAlign: "center", cursor: uploading ? "default" : "pointer",
+            }} onClick={!uploading ? pickFile : undefined}>
               <Film size={32} color="#6FB6E0" style={{ marginBottom: 12 }} />
               <p style={{ fontWeight: 700, fontSize: 14.5, color: "#142433", marginBottom: 4 }}>No video set</p>
               <p style={{ fontSize: 13, color: "#9CB0BF", marginBottom: 16 }}>
@@ -149,8 +158,15 @@ export default function AdminHomepageVideo() {
                 border: "none", borderRadius: 10, padding: "11px 20px", fontWeight: 700, fontSize: 13.5, cursor: "pointer",
               }}>
                 {uploading ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Upload size={15} />}
-                {uploading ? `Uploading…` : "Upload video"}
+                {uploading ? "Uploading…" : "Upload video"}
               </button>
+            </div>
+          )}
+
+          {/* Progress bar */}
+          {uploading && (
+            <div style={{ marginTop: 14, background: "#E3EEF5", borderRadius: 999, height: 6 }}>
+              <div style={{ background: "#2F7FB3", borderRadius: 999, height: 6, width: `${progress}%`, transition: "width 0.3s" }} />
             </div>
           )}
 
@@ -171,7 +187,7 @@ export default function AdminHomepageVideo() {
           )}
 
           <p style={{ fontSize: 12, color: "#9CB0BF", marginTop: 16, lineHeight: 1.6 }}>
-            MP4 or WebM, under {MAX_SIZE_MB}MB. Keep clips short (10-20 seconds, looping) so the page
+            MP4 or WebM, under {MAX_SIZE_MB}MB. Keep clips short (10–20 seconds, looping) so the page
             still loads quickly on mobile data.
           </p>
         </div>
