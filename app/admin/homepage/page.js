@@ -7,11 +7,6 @@ import { createClient } from "@supabase/supabase-js";
 const MAX_SIZE_MB = 25;
 const ACCEPTED_TYPES = ["video/mp4", "video/webm"];
 
-const supabase = createClient(
-  process.env.PUBLIC_SUPABASE_URL,
-  process.env.PUBLIC_SUPABASE_ANON_KEY
-);
-
 export default function AdminHomepageVideo() {
   const [videoUrl, setVideoUrl] = useState(null);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -50,10 +45,15 @@ export default function AdminHomepageVideo() {
     setProgress(10);
 
     try {
+      // Create supabase client here (client-side) so env vars are available
+      const supabase = createClient(
+        "https://ejgmplfnaznbbqdaokvh.supabase.co",
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      );
+
       const ext = file.type === "video/webm" ? "webm" : "mp4";
       const fileName = `homepage/hero-${Date.now()}.${ext}`;
 
-      // Upload directly to Supabase Storage from browser
       const { error: uploadError } = await supabase.storage
         .from("uploads")
         .upload(fileName, file, { contentType: file.type, upsert: false });
@@ -65,7 +65,6 @@ export default function AdminHomepageVideo() {
       const { data } = supabase.storage.from("uploads").getPublicUrl(fileName);
       const publicUrl = data.publicUrl;
 
-      // Save URL to database via API
       const res = await fetch("/api/admin/homepage/video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -163,7 +162,6 @@ export default function AdminHomepageVideo() {
             </div>
           )}
 
-          {/* Progress bar */}
           {uploading && (
             <div style={{ marginTop: 14, background: "#E3EEF5", borderRadius: 999, height: 6 }}>
               <div style={{ background: "#2F7FB3", borderRadius: 999, height: 6, width: `${progress}%`, transition: "width 0.3s" }} />
