@@ -8,8 +8,8 @@ const MAX_SIZE_MB = 25;
 const ACCEPTED_TYPES = ["video/mp4", "video/webm"];
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  process.env.PUBLIC_SUPABASE_URL,
+  process.env.PUBLIC_SUPABASE_ANON_KEY
 );
 
 export default function AdminHomepageVideo() {
