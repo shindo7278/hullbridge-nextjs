@@ -18,7 +18,7 @@ async function getPublishedPosts() {
       orderBy: { publishedAt: "desc" },
     });
   } catch {
-    return []; // DB not reachable — page still renders, just empty
+    return [];
   }
 }
 

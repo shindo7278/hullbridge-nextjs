@@ -20,7 +20,6 @@ async function getPriceCategories() {
         items: { orderBy: { sortOrder: "asc" } },
       },
     });
-    // Shape to match what PricesSearch component expects
     return categories.map((cat) => ({
       name: cat.name,
       items: cat.items.map((item) => ({
@@ -30,7 +29,7 @@ async function getPriceCategories() {
       })),
     }));
   } catch {
-    return []; // DB not reachable — page still renders, just empty
+    return [];
   }
 }
 
