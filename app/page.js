@@ -1,18 +1,17 @@
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import HomeHero from "@/components/HomeHero";
-import { Phone, ShieldCheck, Sparkles, Stethoscope, Star } from "lucide-react";
+import { ShieldCheck, Sparkles, Stethoscope, Star } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
-// Reads the admin-controlled hero video URL straight from the
-// database on every request, so uploading/removing it in
-// /admin/homepage takes effect immediately with no caching step.
+export const revalidate = 0;
+
 async function getClinicSettings() {
   try {
     return await prisma.clinicSettings.findUnique({ where: { id: 1 } });
   } catch {
-    return null; // DB not connected yet — page still renders with the plain background
+    return null;
   }
 }
 
