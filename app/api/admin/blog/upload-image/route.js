@@ -1,25 +1,20 @@
 // POST /api/admin/blog/upload-image
 // ============================================================
-// Uploads a blog image, compresses it, and returns a URL string —
-// the database only ever stores that URL (BlogPost.coverImageUrl /
-// secondImageUrl), never the binary image data. This keeps the
-// database small and fast, and means images can be served directly
-// by the web server / CDN instead of round-tripping through Postgres.
-//
-// Compression uses `sharp` to resize to a sane max width and convert
-// to WebP, which is typically 25-35% smaller than an equivalent JPEG
-// at the same visual quality — meaningful for mobile page speed.
+// Uploads a blog image to Supabase Storage and returns a public URL.
+// Vercel's filesystem is read-only so we can't write to public/uploads —
+// Supabase Storage is the correct solution for serverless deployments.
 // ============================================================
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { verifyAdminSession } from "@/lib/verifyAdminSession";
-import sharp from "sharp";
-import fs from "fs/promises";
-import path from "path";
+import { createClient } from "@supabase/supabase-js";
 
-const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB upload limit before compression
+const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 const ACCEPTED_MIME = ["image/jpeg", "image/png", "image/webp"];
-const MAX_WIDTH = 1600; // images never need to be wider than this for a blog post
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 export async function POST(request) {
   const session = await verifyAdminSession(request);
@@ -37,22 +32,28 @@ export async function POST(request) {
       return NextResponse.json({ error: "Image is too large — please keep it under 10MB" }, { status: 400 });
     }
 
-    const bytes = Buffer.from(await file.arrayBuffer());
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
 
-    // Resize (only if larger than MAX_WIDTH) and convert to WebP —
-    // this is the actual "compression" step that keeps page weight low.
-    const compressed = await sharp(bytes)
-      .resize({ width: MAX_WIDTH, withoutEnlargement: true })
-      .webp({ quality: 80 })
-      .toBuffer();
+    const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    const fileName = `blog-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const filePath = `blog/${fileName}`;
 
-    const fileName = `blog-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
-    const destPath = path.join(process.cwd(), "public", "uploads", "blog", fileName);
-    await fs.mkdir(path.dirname(destPath), { recursive: true });
-    await fs.writeFile(destPath, compressed);
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("uploads")
+      .upload(filePath, buffer, {
+        contentType: file.type,
+        upsert: false,
+      });
 
-    const publicUrl = `/uploads/blog/${fileName}`;
-    return NextResponse.json({ success: true, url: publicUrl });
+    if (uploadError) {
+      console.error("Supabase storage upload error:", uploadError);
+      return NextResponse.json({ error: "Upload failed — please try again." }, { status: 500 });
+    }
+
+    const { data } = supabaseAdmin.storage.from("uploads").getPublicUrl(filePath);
+
+    return NextResponse.json({ success: true, url: data.publicUrl });
   } catch (err) {
     console.error("blog image upload error:", err);
     return NextResponse.json({ error: "Upload failed — please try again." }, { status: 500 });
