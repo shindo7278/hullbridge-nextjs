@@ -2,11 +2,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAdminSession } from "@/lib/verifyAdminSession";
-import fs from "fs/promises";
-import path from "path";
+import { createClient } from "@supabase/supabase-js";
 
 const MAX_SIZE_BYTES = 25 * 1024 * 1024;
 const ACCEPTED_MIME = ["video/mp4", "video/webm"];
+
+const supabaseAdmin = createClient(
+  process.env.PUBLIC_SUPABASSE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 export async function POST(request) {
   const session = await verifyAdminSession(request);
@@ -26,26 +30,37 @@ export async function POST(request) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const fileName = `hero-${Date.now()}${path.extname(file.name || ".mp4")}`;
-    const destPath = path.join(process.cwd(), "public", "uploads", fileName);
-    await fs.mkdir(path.dirname(destPath), { recursive: true });
-    await fs.writeFile(destPath, buffer);
+    const ext = file.type === "video/webm" ? "webm" : "mp4";
+    const fileName = `hero-${Date.now()}.${ext}`;
+    const filePath = `homepage/${fileName}`;
 
-    const publicUrl = `/uploads/${fileName}`;
-
+    // Delete old video from Supabase Storage if exists
     const settings = await prisma.clinicSettings.findUnique({ where: { id: 1 } });
     if (settings?.heroVideoUrl) {
-      const oldPath = path.join(process.cwd(), "public", settings.heroVideoUrl);
-      await fs.unlink(oldPath).catch(() => {});
+      const oldPath = settings.heroVideoUrl.split("/uploads/")[1];
+      if (oldPath) {
+        await supabaseAdmin.storage.from("uploads").remove([oldPath]).catch(() => {});
+      }
     }
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("uploads")
+      .upload(filePath, buffer, { contentType: file.type, upsert: false });
+
+    if (uploadError) {
+      console.error("Supabase video upload error:", uploadError);
+      return NextResponse.json({ error: "Upload failed — please try again." }, { status: 500 });
+    }
+
+    const { data } = supabaseAdmin.storage.from("uploads").getPublicUrl(filePath);
 
     await prisma.clinicSettings.upsert({
       where: { id: 1 },
-      update: { heroVideoUrl: publicUrl },
-      create: { id: 1, heroVideoUrl: publicUrl },
+      update: { heroVideoUrl: data.publicUrl },
+      create: { id: 1, heroVideoUrl: data.publicUrl },
     });
 
-    return NextResponse.json({ success: true, heroVideoUrl: publicUrl });
+    return NextResponse.json({ success: true, heroVideoUrl: data.publicUrl });
   } catch (err) {
     console.error("hero video upload error:", err);
     return NextResponse.json({ error: "Upload failed — please try again." }, { status: 500 });
@@ -59,8 +74,10 @@ export async function DELETE(request) {
   try {
     const settings = await prisma.clinicSettings.findUnique({ where: { id: 1 } });
     if (settings?.heroVideoUrl) {
-      const filePath = path.join(process.cwd(), "public", settings.heroVideoUrl);
-      await fs.unlink(filePath).catch(() => {});
+      const oldPath = settings.heroVideoUrl.split("/uploads/")[1];
+      if (oldPath) {
+        await supabaseAdmin.storage.from("uploads").remove([oldPath]).catch(() => {});
+      }
     }
     await prisma.clinicSettings.update({ where: { id: 1 }, data: { heroVideoUrl: null } });
     return NextResponse.json({ success: true });
