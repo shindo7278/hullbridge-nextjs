@@ -1,13 +1,3 @@
-// ============================================================
-// Hullbridge Dental Clinic — Database Schema (Prisma / PostgreSQL)
-// ============================================================
-// This is the single source of truth for:
-//   - Opening hours (controlled from Admin, shown everywhere consistently)
-//   - Bookings (online + manually entered by admin — same table, no conflicts)
-//   - Services, Prices, Blog posts, FAQs (all editable from Admin)
-//   - Admin users (login-protected, separate from the public site)
-// ============================================================
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -17,163 +7,112 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ----------------------------------------------------------------
-// CLINIC SETTINGS — single row, edited from Admin.
-// This is what fixes the NAP (Name/Address/Phone/Hours) inconsistency
-// flagged as the #1 critical issue in the SEO audit: every page,
-// every schema markup tag, and the booking calendar all read from here.
-// ----------------------------------------------------------------
 model ClinicSettings {
-  id              Int      @id @default(1)
-  legalName       String   @default("Hullbridge Dental Clinic")
-  phone           String   @default("01702 231067")
-  email           String   @default("info@hullbridgedentalclinic.co.uk")
-  whatsapp        String   @default("01702 231067")
-  addressLine1    String   @default("130 Ferry Road")
-  addressLine2    String?  @default("Hullbridge")
-  city            String   @default("Hockley")
-  postcode        String   @default("SS5 6EU")
-  county          String   @default("Essex")
-  country         String   @default("United Kingdom")
-  latitude        Float?
-  longitude       Float?
-  facebookUrl     String?
-  instagramUrl    String?
-  googleBusinessUrl String?
-  googlePlaceId   String?  // needed later for live Google Reviews sync
-  heroVideoUrl    String?  // admin-uploaded AI background video for the homepage hero (e.g. teeth animation, smile clip)
-  heroFallbackImageUrl String? // shown while the video loads / on slow connections
-  updatedAt       DateTime @updatedAt
+  id                   Int      @id @default(1)
+  legalName            String   @default("Hullbridge Dental Clinic")
+  phone                String   @default("01702 231067")
+  email                String   @default("info@hullbridgedentalclinic.co.uk")
+  whatsapp             String   @default("01702 231067")
+  addressLine1         String   @default("130 Ferry Road")
+  addressLine2         String?  @default("Hullbridge")
+  city                 String   @default("Hockley")
+  postcode             String   @default("SS5 6EU")
+  county               String   @default("Essex")
+  country              String   @default("United Kingdom")
+  latitude             Float?
+  longitude            Float?
+  facebookUrl          String?
+  instagramUrl         String?
+  googleBusinessUrl    String?
+  googlePlaceId        String?
+  heroVideoUrl         String?
+  heroFallbackImageUrl String?
+  updatedAt            DateTime @updatedAt
 }
 
-// Weekly recurring opening hours. dayOfWeek: 0=Sunday ... 6=Saturday
-// isOpen=false means closed that day. A clinic can have a day with
-// multiple shifts (e.g. morning + afternoon) by adding two rows.
 model OpeningHour {
   id        Int      @id @default(autoincrement())
-  dayOfWeek Int      // 0-6
+  dayOfWeek Int
   isOpen    Boolean  @default(true)
-  startTime String   // "09:00" 24h format
-  endTime   String   // "17:00"
-  note      String?  // e.g. "Alternate Friday", "One Saturday a month"
+  startTime String
+  endTime   String
+  note      String?
   updatedAt DateTime @updatedAt
 }
 
-// One-off overrides: bank holidays, staff training days, extra Saturday
-// openings. Checked BEFORE the weekly OpeningHour when building the
-// available slots for the booking calendar.
 model ScheduleException {
   id        Int      @id @default(autoincrement())
   date      DateTime @db.Date
-  isOpen    Boolean  @default(false) // false = clinic closed this date
-  startTime String?  // only if isOpen = true and hours differ from normal
+  isOpen    Boolean  @default(false)
+  startTime String?
   endTime   String?
-  reason    String?  // "Bank Holiday", "Staff Training"
+  reason    String?
   createdAt DateTime @default(now())
 }
 
-// ----------------------------------------------------------------
-// BOOKINGS — the single source of truth for slot availability.
-// Both the public website AND the admin "manual booking" write here.
-// A slot is "taken" if a row exists for that clinicDate + startTime
-// with status != CANCELLED. The unique constraint prevents double-booking
-// at the database level (race-condition safe).
-// ----------------------------------------------------------------
-enum BookingStatus {
-  PENDING    // booked online, awaiting clinic confirmation
-  CONFIRMED  // confirmed by clinic (auto or manual)
-  CANCELLED  // freed up, slot becomes available again
-  COMPLETED  // appointment happened
-  NO_SHOW
-}
-
-enum BookingSource {
-  ONLINE   // booked by a patient through the website
-  ADMIN    // entered manually by clinic staff (e.g. phone booking)
-}
-
 model Booking {
-  id            String        @id @default(cuid())
-  date          DateTime      @db.Date   // appointment date
-  startTime     String        // "14:30" 24h format
-  endTime       String        // computed from service duration
-  status        BookingStatus @default(PENDING)
-  source        BookingSource @default(ONLINE)
+  id           String        @id @default(cuid())
+  date         DateTime      @db.Date
+  startTime    String
+  endTime      String
+  status       BookingStatus @default(PENDING)
+  source       BookingSource @default(ONLINE)
+  patientName  String
+  patientPhone String
+  patientEmail String
+  patientAge   Int
+  serviceId    String?
+  notes        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  service      Service?      @relation(fields: [serviceId], references: [id])
 
-  // Patient details — collected via the booking form
-  patientName   String
-  patientPhone  String        // WhatsApp number
-  patientEmail  String
-  patientAge    Int
-
-  serviceId     String?
-  service       Service?      @relation(fields: [serviceId], references: [id])
-
-  notes         String?       // internal admin notes
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-
-  // Prevents two active bookings in the same slot at the database level.
   @@unique([date, startTime], name: "uniqueSlot")
   @@index([date])
 }
 
-// ----------------------------------------------------------------
-// SERVICES — replaces the old "Our Services" page that had zero
-// actual services listed (the #1 content gap in the SEO audit).
-// Each service becomes its own page (/services/[slug]) for SEO,
-// editable entirely from Admin — no code changes needed to add one.
-// ----------------------------------------------------------------
 model Service {
-  id            String    @id @default(cuid())
-  slug          String    @unique          // "dental-implants"
-  name          String                      // "Dental Implants"
-  category      String                      // "Restorative", "Cosmetic", etc.
-  shortSummary  String                      // used in cards / meta description
-  bodyContent   String    @db.Text          // long-form 300-500 word page content
-  metaTitle     String?
+  id              String       @id @default(cuid())
+  slug            String       @unique
+  name            String
+  category        String
+  shortSummary    String
+  bodyContent     String
+  metaTitle       String?
   metaDescription String?
-  durationMinutes Int     @default(30)      // used to compute booking end times
-  priceFrom    Decimal?  @db.Decimal(10, 2)
-  isPublished   Boolean   @default(true)
-  sortOrder     Int       @default(0)
-  faqs          ServiceFaq[]
-  prices        PriceItem[]
-  bookings      Booking[]
-  linkedFromPosts BlogPost[] // posts that link to this service page
-  updatedAt     DateTime  @updatedAt
-  createdAt     DateTime  @default(now())
+  durationMinutes Int          @default(30)
+  priceFrom       Decimal?     @db.Decimal(10, 2)
+  isPublished     Boolean      @default(true)
+  sortOrder       Int          @default(0)
+  updatedAt       DateTime     @updatedAt
+  createdAt       DateTime     @default(now())
+  linkedFromPosts BlogPost[]
+  bookings        Booking[]
+  prices          PriceItem[]
+  faqs            ServiceFaq[]
 }
 
-// FAQ entries per service — this is what powers FAQPage Schema markup,
-// directly addressing the "no AEO-ready Q&A content" critical gap.
 model ServiceFaq {
-  id         String   @id @default(cuid())
-  serviceId  String
-  service    Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  question   String
-  answer     String   @db.Text
-  sortOrder  Int      @default(0)
+  id        String  @id @default(cuid())
+  serviceId String
+  question  String
+  answer    String
+  sortOrder Int     @default(0)
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 }
 
-// Standalone site-wide FAQs (not tied to one service) shown on a
-// general FAQ section / page, also schema-marked.
 model GeneralFaq {
-  id        String   @id @default(cuid())
-  question  String
-  answer    String   @db.Text
-  category  String?  // "Booking", "Pricing", "Emergencies"
-  sortOrder Int      @default(0)
+  id          String  @id @default(cuid())
+  question    String
+  answer      String
+  category    String?
+  sortOrder   Int     @default(0)
   isPublished Boolean @default(true)
 }
 
-// ----------------------------------------------------------------
-// PRICE LIST — structured (not just flat HTML tables like the old
-// site), so each item can link to its Service page and be queried.
-// ----------------------------------------------------------------
 model PriceCategory {
   id        String      @id @default(cuid())
-  name      String                       // "Examination & Diagnosis"
+  name      String
   sortOrder Int         @default(0)
   items     PriceItem[]
 }
@@ -181,72 +120,46 @@ model PriceCategory {
 model PriceItem {
   id          String        @id @default(cuid())
   categoryId  String
-  category    PriceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   serviceId   String?
-  service     Service?      @relation(fields: [serviceId], references: [id])
-  name        String                       // "New patient examination"
+  name        String
   price       Decimal       @db.Decimal(10, 2)
-  priceSuffix String?                      // "+" for "from" pricing
+  priceSuffix String?
   sortOrder   Int           @default(0)
+  category    PriceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  service     Service?      @relation(fields: [serviceId], references: [id])
 }
 
-// ----------------------------------------------------------------
-// BLOG — addresses Phase 3 of the SEO audit (long-tail AEO content)
-// ----------------------------------------------------------------
 model BlogPost {
-  id              String    @id @default(cuid())
-  slug            String    @unique
+  id              String     @id @default(cuid())
+  slug            String     @unique
   title           String
   excerpt         String
-  bodyContent     String    @db.Text
-  coverImageUrl   String?   // first image — compressed, stored as a URL not a blob, for speed
-  secondImageUrl  String?   // second in-article image
+  bodyContent     String
+  coverImageUrl   String?
   metaTitle       String?
   metaDescription String?
-  authorName      String    @default("Hullbridge Dental Clinic")
-  isPublished     Boolean   @default(false)
+  authorName      String     @default("Hullbridge Dental Clinic")
+  isPublished     Boolean    @default(false)
   publishedAt     DateTime?
-
-  // Internal linking — lets a post point at one related Service page
-  // (e.g. a "teeth whitening" article linking to the Teeth Whitening
-  // service) and/or one related post, so the site builds real internal
-  // link equity instead of orphaned blog pages.
-  linkedServiceId String?
-  linkedService   Service?  @relation(fields: [linkedServiceId], references: [id])
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
   linkedPostId    String?
-  linkedPost      BlogPost? @relation("PostToPost", fields: [linkedPostId], references: [id])
+  linkedServiceId String?
+  secondImageUrl  String?
+  linkedPost      BlogPost?  @relation("PostToPost", fields: [linkedPostId], references: [id])
   linkedFromPosts BlogPost[] @relation("PostToPost")
-
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  linkedService   Service?   @relation(fields: [linkedServiceId], references: [id])
 }
 
-// ----------------------------------------------------------------
-// REVIEWS — stored locally so ReviewSchema/AggregateRating can be
-// rendered server-side immediately. (Live Google sync is a Phase-2
-// upgrade once a Google Places API key is set up — see notes.)
-// ----------------------------------------------------------------
 model Review {
   id          String   @id @default(cuid())
   authorName  String
-  rating      Int      // 1-5
-  text        String   @db.Text
+  rating      Int
+  text        String
   reviewDate  DateTime
-  source      String   @default("Google") // "Google", "Facebook"
+  source      String   @default("Google")
   isPublished Boolean  @default(true)
   sortOrder   Int      @default(0)
-}
-
-// ----------------------------------------------------------------
-// CONTACT MESSAGES — submissions from the public Contact Us form.
-// Stored here first (so nothing is ever lost even if the email send
-// fails), then a notification email is sent to the clinic as a
-// best-effort second step — see backend/routes/contact.js.
-// ----------------------------------------------------------------
-enum MessageStatus {
-  NEW
-  READ
-  REPLIED
 }
 
 model ContactMessage {
@@ -254,18 +167,10 @@ model ContactMessage {
   name        String
   email       String
   phone       String?
-  message     String        @db.Text
+  message     String
   status      MessageStatus @default(NEW)
-  emailSentOk Boolean       @default(false) // tracks whether the notification email succeeded
+  emailSentOk Boolean       @default(false)
   createdAt   DateTime      @default(now())
-}
-
-// ----------------------------------------------------------------
-// ADMIN USERS — kept entirely separate from patient data.
-// ----------------------------------------------------------------
-enum AdminRole {
-  OWNER
-  STAFF
 }
 
 model AdminUser {
@@ -276,4 +181,28 @@ model AdminUser {
   role         AdminRole @default(STAFF)
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum BookingSource {
+  ONLINE
+  ADMIN
+}
+
+enum MessageStatus {
+  NEW
+  READ
+  REPLIED
+}
+
+enum AdminRole {
+  OWNER
+  STAFF
 }

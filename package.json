@@ -8,7 +8,14 @@
     "build": "next build",
     "postinstall": "prisma generate",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "seed:admin": "node prisma/seed-admin.js",
+    "seed:hours": "node prisma/seed-hours.js",
+    "seed:prices": "node prisma/seed-prices.js",
+    "seed:faq": "node prisma/seed-faq.js"
   },
   "dependencies": {
     "next": "^15.0.0",
